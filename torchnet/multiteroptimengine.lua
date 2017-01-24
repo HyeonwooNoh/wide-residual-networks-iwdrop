@@ -121,7 +121,7 @@ MultIterOptimEngine.train = argcheck{
 
                state.criterion:backward(state.network.output, sample.target)
                self.hooks("onBackwardCriterion", state)
-               state.network:backward(sample.input, state.criterion.gradInput)
+               state.network:backward(sample.input, state.criterion.gradInput:div(state.numIter))
                self.hooks("onBackward", state)
 	
 					if state.it == state.numIter then
