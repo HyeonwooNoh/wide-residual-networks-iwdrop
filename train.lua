@@ -15,36 +15,39 @@ local iterm = require 'iterm'
 require 'iterm.dot'
 
 local opt = {
-  dataset = './datasets/cifar10_whitened.t7',
-  save = 'logs',
-  batchSize = 128,
-  learningRate = 0.1,
-  learningRateDecay = 0,
-  learningRateDecayRatio = 0.2,
-  weightDecay = 0.0005,
-  dampening = 0,
-  momentum = 0.9,
-  epoch_step = "80",
-  max_epoch = 300,
-  model = 'nin',
-  optimMethod = 'sgd',
-  init_value = 10,
-  depth = 50,
-  shortcutType = 'A',
-  nesterov = false,
-  dropout = 0,
-  hflip = true,
-  randomcrop = 4,
-  imageSize = 32,
-  randomcrop_type = 'zero',
-  cudnn_deterministic = false,
-  optnet_optimize = true,
-  generate_graph = false,
-  multiply_input_factor = 1,
-  widen_factor = 1,
-  nGPU = 1,
-  data_type = 'torch.CudaTensor',
-  seed = 444,
+	dataset = './datasets/cifar10_whitened.t7',
+	save = 'logs',
+	batchSize = 128,
+	learningRate = 0.1,
+	learningRateDecay = 0,
+	learningRateDecayRatio = 0.2,
+	weightDecay = 0.0005,
+	dampening = 0,
+	momentum = 0.9,
+	epoch_step = "80",
+	max_epoch = 300,
+	model = 'nin',
+	optimMethod = 'sgd',
+	init_value = 10,
+	depth = 50,
+	shortcutType = 'A',
+	nesterov = false,
+	dropout = 0,
+	hflip = true,
+	randomcrop = 4,
+	imageSize = 32,
+	randomcrop_type = 'zero',
+	cudnn_deterministic = false,
+	optnet_optimize = true,
+	generate_graph = false,
+	multiply_input_factor = 1,
+	widen_factor = 1,
+	nGPU = 1,
+	data_type = 'torch.CudaTensor',
+	seed = 444,
+	importance_weighted_training = false,
+	num_samples = 1,
+	num_iter = 1,
 }
 opt = xlua.envparams(opt)
 
@@ -117,6 +120,13 @@ local function randomcrop(x)
    return padded:narrow(3,x,imsize):narrow(2,y,imsize)
 end
 
+local function repeatimage(x)
+	return x:repeatTensor(opt.num_samples, 1, 1, 1)
+end
+
+local function repeatlabel(x)
+	return x:repeatTensor(opt.num_samples, 1)
+end
 
 local function getIterator(mode)
    local dataset = provider[mode..'Data']
@@ -140,6 +150,14 @@ local function getIterator(mode)
             }
          }
          :batch(opt.batchSize, 'skip-last')
+			:transform{
+				input = tnt.transform.compose{
+					opt.importance_weighted_training and repeatimage or nil,
+				},
+				target = tnt.transform.compose{
+					opt.importance_weighted_training and repeatlabel or nil,
+				}
+			}
       or list_dataset
          :batch(opt.batchSize, 'include-last')
 
@@ -162,9 +180,16 @@ local function log(t) print('json_stats: '..json.encode(tablex.merge(t,opt,true)
 
 print('Will save at '..opt.save)
 paths.mkdir(opt.save)
-
-local engine = tnt.OptimEngine()
-local criterion = cast(nn.CrossEntropyCriterion())
+dofile('torchnet/multiteroptimengine.lua')
+local engine = tnt.MultIterOptimEngine()
+local criterion
+if opt.importance_weighted_training then
+	dofile('models/ImportanceWeightedCrossEntropyCriterion.lua')
+	criterion = cast(nn.ImportanceWeightedCrossEntropyCriterion(
+		opt.num_samples, opt.num_classes, opt.batchSize))
+else
+	criterion = cast(nn.CrossEntropyCriterion())
+end
 local meter = tnt.AverageValueMeter()
 local clerr = tnt.ClassErrorMeter{topk = {1}}
 local train_timer = torch.Timer()
@@ -235,6 +260,7 @@ engine:train{
    optimMethod = optim.sgd,
    config = tablex.deepcopy(opt),
    maxepoch = opt.max_epoch,
+	numIter = opt.num_iter,
 }
 
 torch.save(opt.save..'/model.t7', net:clearState())
