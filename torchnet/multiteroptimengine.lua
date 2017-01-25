@@ -94,7 +94,9 @@ MultIterOptimEngine.train = argcheck{
          end
 
          local function feval()
-            return state.criterion.output, state.gradParams
+				-- As the loss and gradients are accumulated for numIter iterations, we should
+				-- divide it out
+            return state.criterion.output / state.numIter, state.gradParams:div(state.numIter)
          end
 
          self.hooks("onStart", state)
@@ -112,7 +114,7 @@ MultIterOptimEngine.train = argcheck{
                state.criterion:forward(state.network.output, sample.target)
                self.hooks("onForwardCriterion", state)
 					
-					if state.i == 1 then
+					if state.it == 1 then
 						state.network:zeroGradParameters()
 						if state.criterion.zeroGradParameters then
 							state.criterion:zeroGradParameters()
@@ -121,13 +123,13 @@ MultIterOptimEngine.train = argcheck{
 
                state.criterion:backward(state.network.output, sample.target)
                self.hooks("onBackwardCriterion", state)
-               state.network:backward(sample.input, state.criterion.gradInput:div(state.numIter))
+               state.network:backward(sample.input, state.criterion.gradInput)
                self.hooks("onBackward", state)
 	
 					if state.it == state.numIter then
 						state.optimMethod(feval, state.params, state.config, state.optim)
 					end
-					if state.i == state.numIter then
+					if state.it == state.numIter then
 						state.it = 1
 					else
 						state.it = state.it + 1
