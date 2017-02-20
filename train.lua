@@ -43,6 +43,7 @@ local opt = {
 	multiply_input_factor = 1,
 	widen_factor = 1,
 	nGPU = 1,
+	gpuid = 0,
 	data_type = 'torch.CudaTensor',
 	seed = 444,
 	importance_weighted_training = false,
@@ -78,6 +79,7 @@ local net = dofile('models/'..opt.model..'.lua')(opt)
 if opt.data_type:match'torch.Cuda.*Tensor' then
    require 'cudnn'
    require 'cunn'
+	cutorch.setDevice(opt.gpuid + 1)	--note +1 to make it 0 indexed! sigh lua
    cudnn.convert(net, cudnn):cuda()
    if opt.cudnn_deterministic then
       net:apply(function(m) if m.setMode then m:setMode(1,1,1) end end)
