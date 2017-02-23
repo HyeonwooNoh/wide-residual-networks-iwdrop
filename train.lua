@@ -47,6 +47,7 @@ local opt = {
 	data_type = 'torch.CudaTensor',
 	seed = 444,
 	importance_weighted_training = false,
+	use_importance_weight = true,
 	num_samples = 1,
 	num_iter = 1,
 }
@@ -185,7 +186,7 @@ paths.mkdir(opt.save)
 dofile('torchnet/multiteroptimengine.lua')
 local engine = tnt.MultIterOptimEngine()
 local criterion
-if opt.importance_weighted_training then
+if opt.importance_weighted_training and opt.use_importance_weight then
 	dofile('models/ImportanceWeightedCrossEntropyCriterion.lua')
 	criterion = cast(nn.ImportanceWeightedCrossEntropyCriterion(
 		opt.num_samples, opt.num_classes, opt.batchSize))
