@@ -104,36 +104,26 @@ MultIterOptimEngine.train = argcheck{
             state.network:training()
 
             self.hooks("onStartEpoch", state)
-				state.it = 1
             for sample in state.iterator() do
                state.sample = sample
                self.hooks("onSample", state)
 
-               state.network:forward(sample.input)
-               self.hooks("onForward", state)
-               state.criterion:forward(state.network.output, sample.target)
-               self.hooks("onForwardCriterion", state)
-					
-					if state.it == 1 then
-						state.network:zeroGradParameters()
-						if state.criterion.zeroGradParameters then
-							state.criterion:zeroGradParameters()
-						end
+					state.network:zeroGradParameters()
+					if state.criterion.zeroGradParameters then
+						state.criterion:zeroGradParameters()
 					end
+					for it = 1, state.numIter do
+						state.network:forward(sample.input)
+						self.hooks("onForward", state)
+						state.criterion:forward(state.network.output, sample.target)
+						self.hooks("onForwardCriterion", state)
 
-               state.criterion:backward(state.network.output, sample.target)
-               self.hooks("onBackwardCriterion", state)
-               state.network:backward(sample.input, state.criterion.gradInput)
-               self.hooks("onBackward", state)
-	
-					if state.it == state.numIter then
-						state.optimMethod(feval, state.params, state.config, state.optim)
+						state.criterion:backward(state.network.output, sample.target)
+						self.hooks("onBackwardCriterion", state)
+						state.network:backward(sample.input, state.criterion.gradInput)
+						self.hooks("onBackward", state)
 					end
-					if state.it == state.numIter then
-						state.it = 1
-					else
-						state.it = state.it + 1
-					end
+					state.optimMethod(feval, state.params, state.config, state.optim)
                state.t = state.t + 1
                self.hooks("onUpdate", state)
             end

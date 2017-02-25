@@ -46,8 +46,6 @@ local opt = {
 	gpuid = 0,
 	data_type = 'torch.CudaTensor',
 	seed = 444,
-	importance_weighted_training = false,
-	use_importance_weight = true,
 	num_samples = 1,
 	num_iter = 1,
 }
@@ -155,10 +153,10 @@ local function getIterator(mode)
          :batch(opt.batchSize, 'skip-last')
 			:transform{
 				input = tnt.transform.compose{
-					opt.importance_weighted_training and repeatimage or nil,
+					(opt.num_samples > 1) and repeatimage or nil,
 				},
 				target = tnt.transform.compose{
-					opt.importance_weighted_training and repeatlabel or nil,
+					(opt.num_samples > 1) and repeatlabel or nil,
 				}
 			}
       or list_dataset
@@ -185,14 +183,7 @@ print('Will save at '..opt.save)
 paths.mkdir(opt.save)
 dofile('torchnet/multiteroptimengine.lua')
 local engine = tnt.MultIterOptimEngine()
-local criterion
-if opt.importance_weighted_training and opt.use_importance_weight then
-	dofile('models/ImportanceWeightedCrossEntropyCriterion.lua')
-	criterion = cast(nn.ImportanceWeightedCrossEntropyCriterion(
-		opt.num_samples, opt.num_classes, opt.batchSize))
-else
-	criterion = cast(nn.CrossEntropyCriterion())
-end
+local criterion = cast(nn.CrossEntropyCriterion())
 local meter = tnt.AverageValueMeter()
 local clerr = tnt.ClassErrorMeter{topk = {1}}
 local train_timer = torch.Timer()
